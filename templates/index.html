@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Audio Order Processor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+        }
+
+        #progressIndicator {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Audio Order Processing System</h2>
+    <button id="startRecord">Start Recording</button>
+    <button id="stopRecord" disabled>Stop Recording</button>
+    <div id="progressIndicator"></div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        const progressIndicator = document.getElementById("progressIndicator");
+
+        document.getElementById("startRecord").addEventListener("click", function () {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+                    document.getElementById("startRecord").disabled = true;
+                    document.getElementById("stopRecord").disabled = false;
+                    progressIndicator.textContent = ""; // Clear progress indicator
+
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        audioChunks.push(event.data);
+                    });
+                });
+        });
+
+        document.getElementById("stopRecord").addEventListener("click", function () {
+            mediaRecorder.stop();
+            document.getElementById("startRecord").disabled = false;
+            document.getElementById("stopRecord").disabled = true;
+            progressIndicator.textContent = "Thanks for your order... waiting...";
+
+            mediaRecorder.addEventListener("stop", () => {
+                const audioBlob = new Blob(audioChunks, { 'type': 'audio/mpeg' });
+                uploadAudio(audioBlob);
+                audioChunks = [];
+            });
+        });
+
+        function uploadAudio(blob) {
+            let formData = new FormData();
+            formData.append("audio", blob, "audio.mp3");
+
+            fetch("/process_audio", {
+                method: "POST",
+                body: formData
+            })
+                .then(response => response.blob())
+                .then(blob => {
+                    const audio = new Audio(URL.createObjectURL(blob));
+                    audio.play();
+                    progressIndicator.textContent = "";
+                })
+                .catch(error => {
+                    console.error(error);
+                    progressIndicator.textContent = "Error processing your order. Please try again.";
+                });
+        }
+    </script>
+</body>
+
+</html>
